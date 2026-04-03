@@ -42,7 +42,6 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         if (luckPerms == null) return 1;
         User user = luckPerms.getUserManager().getUser(player.getUniqueId());
         if (user == null) return 1;
-
         String weightStr = user.getCachedData().getMetaData().getMetaValue("weight");
         if (weightStr != null) {
             try { return Integer.parseInt(weightStr); } catch (NumberFormatException e) { return 1; }
@@ -108,115 +107,133 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (!(sender instanceof Player player)) return true;
 
+        // --- 1. RELOAD COMMAND ---
+        if (cmd.getName().equalsIgnoreCase("titlereload")) {
+            if (sender.hasPermission("prefixes.reload") || !(sender instanceof Player)) {
+                reloadConfig();
+                sender.sendMessage(ChatColor.GREEN + "ChatPrefix Reloaded!");
+                return true;
+            }
+            sender.sendMessage(ChatColor.RED + "No permission!");
+            return true;
+        }
+
+        // --- 2. TITLES COMMAND ---
         if (cmd.getName().equalsIgnoreCase("titles")) {
-            int playerPower = getPlayerPower(player);
-            List<String> prefixKeys = new ArrayList<>(getConfig().getStringList("prefix-list"));
+            Player target = null;
+            String choice = null;
 
-            // --- SMART SORT: Visual order (Member first, Staff last) ---
-            prefixKeys.sort((a, b) -> {
-                if (a.equalsIgnoreCase("member")) return -1;
-                if (b.equalsIgnoreCase("member")) return 1;
-                int weightA = getConfig().getInt("prefixes." + a + ".weight", 0);
-                int weightB = getConfig().getInt("prefixes." + b + ".weight", 0);
-                boolean isStaffA = weightA >= 100;
-                boolean isStaffB = weightB >= 100;
-                if (isStaffA && !isStaffB) return 1;
-                if (!isStaffA && isStaffB) return -1;
-                return Integer.compare(weightA, weightB);
-            });
-
-            // Prepare the display list of available titles
-            List<String> available = new ArrayList<>();
-            for (String k : prefixKeys) {
-                int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
-                String perm = getConfig().getString("prefixes." + k + ".permission");
-                if (playerPower >= titleWeight && player.hasPermission(perm)) {
-                    String raw = getConfig().getString("prefixes." + k + ".prefix", k);
-                    available.add(ChatColor.GRAY + "[" + ChatColor.translateAlternateColorCodes('&', raw) + ChatColor.GRAY + "]");
+            // Staff/Console Usage: /titles <player> <prefix>
+            if (args.length >= 2 && (!(sender instanceof Player) || sender.hasPermission("prefixes.change.others"))) {
+                target = Bukkit.getPlayer(args[0]);
+                choice = args[1].toLowerCase();
+                if (target == null) {
+                    sender.sendMessage(ChatColor.RED + "Player not found!");
+                    return true;
                 }
             }
-
-            // Case 1: Simple list view
-            if (args.length == 0) {
-                player.sendMessage(ChatColor.GOLD + "Your available prefixes:");
-                if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
+            // Self Usage: /titles <prefix>
+            else if (args.length >= 1 && sender instanceof Player player) {
+                target = player;
+                choice = args[0].toLowerCase();
+            }
+            // Help/List Usage: /titles
+            else if (args.length == 0 && sender instanceof Player player) {
+                showAvailableTitles(player);
+                return true;
+            } else {
+                sender.sendMessage(ChatColor.RED + "Usage: /titles <prefix> or /titles <player> <prefix>");
                 return true;
             }
 
-            // Case 2: Attempting to select a title
-            String choice = args[0].toLowerCase();
             if (getConfig().contains("prefixes." + choice)) {
                 int targetWeight = getConfig().getInt("prefixes." + choice + ".weight", 0);
                 String perm = getConfig().getString("prefixes." + choice + ".permission");
+                int targetPower = getPlayerPower(target);
 
-                if (playerPower >= targetWeight && player.hasPermission(perm)) {
-                    saveTitleData(player, "active_title_id", choice, choice);
-                    saveTitleData(player, "custom_style", "", choice);
+                // Security Check: Target must have permission, unless Console is forcing it.
+                if (!(sender instanceof Player) || (targetPower >= targetWeight && target.hasPermission(perm))) {
+                    saveTitleData(target, "active_title_id", choice, choice);
+                    saveTitleData(target, "custom_style", "", choice);
                     String rawPrefix = getConfig().getString("prefixes." + choice + ".prefix");
-                    player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Prefix/title set to: &7[" + rawPrefix + "&7]"));
+
+                    target.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Prefix/title set to: &7[" + rawPrefix + "&7]"));
+                    if (target != sender) {
+                        sender.sendMessage(ChatColor.GREEN + "Successfully set " + target.getName() + "'s title to " + choice);
+                    }
                 } else {
-                    player.sendMessage(ChatColor.RED + "No permission!");
+                    sender.sendMessage(ChatColor.RED + "That player does not have permission for that title!");
                 }
             } else {
-                // Case 3: Title doesn't exist - Show Error + Available List
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cThat title doesnt exist! &6Available prefixes/titles:"));
-                if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
+                sender.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cThat title doesnt exist! &6Available prefixes/titles:"));
+                if (sender instanceof Player p) showAvailableTitles(p);
             }
             return true;
         }
 
-        if (cmd.getName().equalsIgnoreCase("titlecolor")) {
+        // --- 3. TITLECOLOR COMMAND ---
+        if (cmd.getName().equalsIgnoreCase("titlecolor") && sender instanceof Player player) {
             String currentId = getTitleData(player, "active_title_id");
             if (currentId == null) currentId = "member";
-
             boolean isStaffTitle = getConfig().getStringList("sync-titles").contains(currentId);
-            boolean canStyle = player.hasPermission("prefixes.bypass") ||
-                    (isStaffTitle ? player.hasPermission("prefixes.style.staff") : player.hasPermission("prefixes.style.standard"));
+            boolean canStyle = player.hasPermission("prefixes.bypass") || (isStaffTitle ? player.hasPermission("prefixes.style.staff") : player.hasPermission("prefixes.style.standard"));
 
             if (!canStyle) {
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cYou don't have permission to style this type of title!"));
+                player.sendMessage(ChatColor.RED + "No permission to style this title!");
                 return true;
             }
-
             if (args.length == 0) {
                 player.sendMessage(ChatColor.GOLD + "Usage: /titlecolor <colored name>");
                 return true;
             }
-
             String input = String.join(" ", args);
             if (input.toLowerCase().matches(".*&[l-o rk].*")) {
-                player.sendMessage(ChatColor.RED + "Formatting codes (bold/italic/etc) are forbidden!");
-                return true;
-            }
-
-            if (player.hasPermission("prefixes.bypass")) {
-                saveTitleData(player, "custom_style", input, currentId);
-                String preview = ChatColor.translateAlternateColorCodes('&', input);
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&b[Bypass Mode] &7Style applied: &7[" + preview + "&7]"));
+                player.sendMessage(ChatColor.RED + "Formatting codes forbidden!");
                 return true;
             }
 
             String rawBase = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefixes." + currentId + ".prefix", "Member")));
-            if (ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input)).equals(rawBase)) {
+            if (player.hasPermission("prefixes.bypass") || ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input)).equals(rawBase)) {
                 saveTitleData(player, "custom_style", input, currentId);
-                String preview = ChatColor.translateAlternateColorCodes('&', input);
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6New colors applied correctly! Your new title is &7[" + preview + "&7]"));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6New colors applied! Title: &7[" + input + "&7]"));
             } else {
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6The input title is wrong! Please match: " + ChatColor.WHITE + rawBase));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Input wrong! Match: " + ChatColor.WHITE + rawBase));
             }
             return true;
         }
-
-        if (cmd.getName().equalsIgnoreCase("titlereload") && sender.hasPermission("prefixes.reload")) {
-            reloadConfig();
-            sender.sendMessage(ChatColor.GREEN + "ChatPrefix Reloaded!");
-            return true;
-        }
         return true;
+    }
+
+    private void showAvailableTitles(Player player) {
+        int playerPower = getPlayerPower(player);
+        List<String> prefixKeys = new ArrayList<>(getConfig().getStringList("prefix-list"));
+
+        // Visual Sorting: Member -> Cosmetics -> Staff
+        prefixKeys.sort((a, b) -> {
+            if (a.equalsIgnoreCase("member")) return -1;
+            if (b.equalsIgnoreCase("member")) return 1;
+            int weightA = getConfig().getInt("prefixes." + a + ".weight", 0);
+            int weightB = getConfig().getInt("prefixes." + b + ".weight", 0);
+            boolean isStaffA = weightA >= 100;
+            boolean isStaffB = weightB >= 100;
+            if (isStaffA && !isStaffB) return 1;
+            if (!isStaffA && isStaffB) return -1;
+            return Integer.compare(weightA, weightB);
+        });
+
+        List<String> available = new ArrayList<>();
+        for (String k : prefixKeys) {
+            int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
+            String perm = getConfig().getString("prefixes." + k + ".permission");
+            if (playerPower >= titleWeight && player.hasPermission(perm)) {
+                String raw = getConfig().getString("prefixes." + k + ".prefix", k);
+                available.add(ChatColor.GRAY + "[" + ChatColor.translateAlternateColorCodes('&', raw) + ChatColor.GRAY + "]");
+            }
+        }
+        player.sendMessage(ChatColor.GOLD + "Your available prefixes:");
+        if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
+        player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
     }
 
     public String getActivePrefix(Player player) {

@@ -1,5 +1,5 @@
 name: ChatPrefix
-version: 2.0.0
+version: 2.1a.0
 main: com.Hakuuu.chatPrefix.ChatPrefix
 api-version: '1.21'
 depend: [PlaceholderAPI, LuckPerms]
@@ -27,6 +27,9 @@ permissions:
   prefixes.style.standard:
     description: Allows styling colors for non-synced titles (e.g., Member, Donors).
     default: false
+  prefixes.change.others:
+    description: Allows changing the title of other players.
+    default: op
   prefixes.style.staff:
     description: Allows styling colors for Synced/Staff titles (Owner through JrHelper).
     default: false
