@@ -1,0 +1,62 @@
+# Your updated format
+format: "&7[%chat_prefix%&7] &f%player_name% » &f%msg%"
+
+# Network Sync Settings
+sync-to-luckperms: true
+sync-titles:
+  - owner
+  - coowner
+  - headadmin
+  - sradmin
+  - admin
+  - moderator
+  - jrmoderator
+  - helper
+  - jrhelper
+
+prefix-list:
+  - member
+  - jrhelper
+  - helper
+  - jrmoderator
+  - moderator
+  - admin
+  - sradmin
+  - headadmin
+  - coowner
+  - owner
+
+prefixes:
+  owner:
+    permission: prefixes.owner
+    prefix: "&4Owner"
+  coowner:
+    permission: prefixes.coowner
+    prefix: "&4Co-Owner"
+  headadmin:
+    permission: prefixes.headadmin
+    prefix: "&4Head-Admin"
+  sradmin:
+    permission: prefixes.sradmin
+    prefix: "&cSrAdmin"
+  admin:
+    permission: prefixes.admin
+    prefix: "&cAdmin"
+  moderator:
+    permission: prefixes.moderator
+    prefix: "&3Moderator"
+  jrmoderator:
+    permission: prefixes.jrmoderator
+    prefix: "&bJrModerator"
+  helper:
+    permission: prefixes.helper
+    prefix: "&2Helper"
+  jrhelper:
+    permission: prefixes.jrhelper
+    prefix: "&aJrHelper"
+  member:
+    permission: prefixes.member
+    prefix: "&eMember"
+
+# Non-synced players will still be saved here locally
+players:

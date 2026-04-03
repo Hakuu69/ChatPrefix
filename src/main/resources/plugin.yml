@@ -1,0 +1,38 @@
+name: ChatPrefix
+version: 2.0.0
+main: com.Hakuuu.chatPrefix.ChatPrefix
+api-version: '1.21'
+depend: [PlaceholderAPI, LuckPerms]
+commands:
+  titles:
+    description: Change your title
+    usage: /titles <title_name>
+    aliases: [prefix, prefixes]
+  titlecolor:
+    description: Change your title color
+    usage: /titlecolor <&codeTitle>
+    aliases: [prefixcolor]
+    permission: prefixes.use
+    permission-message: "&cInsufficient Permission!"
+  titlereload:
+    description: Reload the Prefixes Plugin
+    usage: /titlereload
+    permission: prefixes.reload
+    permission-message: "&cInsufficient Permission!"
+
+permissions:
+  prefixes.use:
+    description: Access to see titles. (Default for everyone)
+    default: true
+  prefixes.style.standard:
+    description: Allows styling colors for standard titles.
+    default: false
+  prefixes.style.sync:
+    description: Allows styling colors for Synced/Staff titles.
+    default: false
+  prefixes.bypass:
+    description: Total freedom in title styling.
+    default: op
+  prefixes.reload:
+    description: Reload the plugin.
+    default: op

@@ -1,0 +1,22 @@
+# Gradle files
+.gradle/
+build/
+
+# IntelliJ IDEA files
+.idea/
+*.iml
+*.iws
+out/
+
+# Compiled files
+*.class
+*.jar
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# PLUGIN SPECIFIC - IMPORTANT
+# Do not upload your testing config or player database!
+src/main/resources/config.yml.local
+players/
