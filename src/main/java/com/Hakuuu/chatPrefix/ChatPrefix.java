@@ -38,7 +38,6 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         }
     }
 
-    // Fetches the 'weight' meta from LuckPerms to determine "Power Level"
     private int getPlayerPower(Player player) {
         if (luckPerms == null) return 1;
         User user = luckPerms.getUserManager().getUser(player.getUniqueId());
@@ -51,8 +50,6 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         return 1;
     }
 
-    // Logic for %chat_rank% (Scoreboard/Tab)
-    // DOUBLE-CHECK: It looks for the highest weight title the player actually has permission for.
     public String getHighestRank(Player player) {
         int playerPower = getPlayerPower(player);
         String highestId = "member";
@@ -62,15 +59,12 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         for (String k : prefixKeys) {
             int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
             String perm = getConfig().getString("prefixes." + k + ".permission");
-
-            // Scoreboard must respect weight: Member (5) > Voter (1)
             if (player.hasPermission(perm) && playerPower >= titleWeight && titleWeight > highestWeight) {
                 highestWeight = titleWeight;
                 highestId = k;
             }
         }
-        String raw = getConfig().getString("prefixes." + highestId + ".prefix", "&eMember");
-        return ChatColor.translateAlternateColorCodes('&', raw);
+        return ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefixes." + highestId + ".prefix", "&eMember"));
     }
 
     @EventHandler
@@ -118,50 +112,46 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
 
         if (cmd.getName().equalsIgnoreCase("titles")) {
             int playerPower = getPlayerPower(player);
+            List<String> prefixKeys = new ArrayList<>(getConfig().getStringList("prefix-list"));
 
+            // --- SMART SORT: Visual order (Member first, Staff last) ---
+            prefixKeys.sort((a, b) -> {
+                if (a.equalsIgnoreCase("member")) return -1;
+                if (b.equalsIgnoreCase("member")) return 1;
+                int weightA = getConfig().getInt("prefixes." + a + ".weight", 0);
+                int weightB = getConfig().getInt("prefixes." + b + ".weight", 0);
+                boolean isStaffA = weightA >= 100;
+                boolean isStaffB = weightB >= 100;
+                if (isStaffA && !isStaffB) return 1;
+                if (!isStaffA && isStaffB) return -1;
+                return Integer.compare(weightA, weightB);
+            });
+
+            // Prepare the display list of available titles
+            List<String> available = new ArrayList<>();
+            for (String k : prefixKeys) {
+                int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
+                String perm = getConfig().getString("prefixes." + k + ".permission");
+                if (playerPower >= titleWeight && player.hasPermission(perm)) {
+                    String raw = getConfig().getString("prefixes." + k + ".prefix", k);
+                    available.add(ChatColor.GRAY + "[" + ChatColor.translateAlternateColorCodes('&', raw) + ChatColor.GRAY + "]");
+                }
+            }
+
+            // Case 1: Simple list view
             if (args.length == 0) {
                 player.sendMessage(ChatColor.GOLD + "Your available prefixes:");
-                List<String> prefixKeys = new ArrayList<>(getConfig().getStringList("prefix-list"));
-
-                // --- SMART SORT: Visual Order for the menu ---
-                prefixKeys.sort((a, b) -> {
-                    // 1. Member always first
-                    if (a.equalsIgnoreCase("member")) return -1;
-                    if (b.equalsIgnoreCase("member")) return 1;
-
-                    int weightA = getConfig().getInt("prefixes." + a + ".weight", 0);
-                    int weightB = getConfig().getInt("prefixes." + b + ".weight", 0);
-
-                    // 2. Staff (Weight 100+) always last
-                    boolean isStaffA = weightA >= 100;
-                    boolean isStaffB = weightB >= 100;
-                    if (isStaffA && !isStaffB) return 1;
-                    if (!isStaffA && isStaffB) return -1;
-
-                    // 3. Sort others by weight (Lowest to Highest)
-                    return Integer.compare(weightA, weightB);
-                });
-
-                List<String> available = new ArrayList<>();
-                for (String k : prefixKeys) {
-                    int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
-                    String perm = getConfig().getString("prefixes." + k + ".permission");
-
-                    // HYBRID CHECK: Respects Weight (Anti-OP) and Permission nodes (including 'false')
-                    if (playerPower >= titleWeight && player.hasPermission(perm)) {
-                        String raw = getConfig().getString("prefixes." + k + ".prefix", k);
-                        available.add(ChatColor.GRAY + "[" + ChatColor.translateAlternateColorCodes('&', raw) + ChatColor.GRAY + "]");
-                    }
-                }
                 if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
                 return true;
             }
 
+            // Case 2: Attempting to select a title
             String choice = args[0].toLowerCase();
             if (getConfig().contains("prefixes." + choice)) {
                 int targetWeight = getConfig().getInt("prefixes." + choice + ".weight", 0);
                 String perm = getConfig().getString("prefixes." + choice + ".permission");
+
                 if (playerPower >= targetWeight && player.hasPermission(perm)) {
                     saveTitleData(player, "active_title_id", choice, choice);
                     saveTitleData(player, "custom_style", "", choice);
@@ -170,6 +160,11 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
                 } else {
                     player.sendMessage(ChatColor.RED + "No permission!");
                 }
+            } else {
+                // Case 3: Title doesn't exist - Show Error + Available List
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cThat title doesnt exist! &6Available prefixes/titles:"));
+                if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
             }
             return true;
         }
