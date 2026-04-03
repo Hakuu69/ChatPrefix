@@ -22,17 +22,17 @@ commands:
 
 permissions:
   prefixes.use:
-    description: Access to see titles. (Default for everyone)
+    description: Allows players to open the title list and select a prefix.
     default: true
   prefixes.style.standard:
-    description: Allows styling colors for standard titles.
+    description: Allows styling colors for non-synced titles (e.g., Member, Donors).
     default: false
-  prefixes.style.sync:
-    description: Allows styling colors for Synced/Staff titles.
+  prefixes.style.staff:
+    description: Allows styling colors for Synced/Staff titles (Owner through JrHelper).
     default: false
   prefixes.bypass:
-    description: Total freedom in title styling.
+    description: Allows styling any title regardless of restrictions or name matching.
     default: op
   prefixes.reload:
-    description: Reload the plugin.
+    description: Allows reloading the plugin configuration.
     default: op

@@ -14,10 +14,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.AsyncPlayerChatEvent;
-import org.bukkit.event.player.PlayerJoinEvent; // Added Import
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.plugin.java.JavaPlugin;
-import java.util.List;
-import java.util.ArrayList;
+import java.util.*;
 
 public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor {
 
@@ -39,43 +38,65 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         }
     }
 
-    // --- AUTO-DEMOTION FIX: Reset title on join if permission is lost ---
+    // Fetches the 'weight' meta from LuckPerms to determine "Power Level"
+    private int getPlayerPower(Player player) {
+        if (luckPerms == null) return 1;
+        User user = luckPerms.getUserManager().getUser(player.getUniqueId());
+        if (user == null) return 1;
+
+        String weightStr = user.getCachedData().getMetaData().getMetaValue("weight");
+        if (weightStr != null) {
+            try { return Integer.parseInt(weightStr); } catch (NumberFormatException e) { return 1; }
+        }
+        return 1;
+    }
+
+    // Logic for %chat_rank% (Scoreboard/Tab)
+    // DOUBLE-CHECK: It looks for the highest weight title the player actually has permission for.
+    public String getHighestRank(Player player) {
+        int playerPower = getPlayerPower(player);
+        String highestId = "member";
+        int highestWeight = -1;
+
+        List<String> prefixKeys = getConfig().getStringList("prefix-list");
+        for (String k : prefixKeys) {
+            int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
+            String perm = getConfig().getString("prefixes." + k + ".permission");
+
+            // Scoreboard must respect weight: Member (5) > Voter (1)
+            if (player.hasPermission(perm) && playerPower >= titleWeight && titleWeight > highestWeight) {
+                highestWeight = titleWeight;
+                highestId = k;
+            }
+        }
+        String raw = getConfig().getString("prefixes." + highestId + ".prefix", "&eMember");
+        return ChatColor.translateAlternateColorCodes('&', raw);
+    }
+
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         String currentId = getTitleData(player, "active_title_id");
-
-        // If current title is member (or null), do nothing
         if (currentId == null || currentId.equalsIgnoreCase("member")) return;
 
-        // Check if player still has the permission for the title they have selected
         String perm = getConfig().getString("prefixes." + currentId + ".permission");
         if (perm != null && !player.hasPermission(perm)) {
-            // Force reset to member
             saveTitleData(player, "active_title_id", "member", "member");
             saveTitleData(player, "custom_style", "", "member");
-            player.sendMessage(ChatColor.RED + "Your title was reset because you no longer have access to it.");
         }
     }
 
     private void saveTitleData(Player player, String key, String value, String titleId) {
-        boolean useLP = getConfig().getBoolean("sync-to-luckperms", true);
-        List<String> syncList = getConfig().getStringList("sync-titles");
-
         if (luckPerms != null) {
             User user = luckPerms.getUserManager().getUser(player.getUniqueId());
             if (user != null) {
-                // Wipe old global data first to prevent ghosting
                 user.data().clear(node -> node instanceof MetaNode && ((MetaNode) node).getMetaKey().equalsIgnoreCase(key));
-
-                // Only write NEW global data if the title is in the sync list
-                if (useLP && syncList.contains(titleId)) {
+                if (getConfig().getBoolean("sync-to-luckperms", true) && getConfig().getStringList("sync-titles").contains(titleId)) {
                     user.data().add(MetaNode.builder(key, value).build());
                 }
                 luckPerms.getUserManager().saveUser(user);
             }
         }
-
         getConfig().set("players." + player.getUniqueId() + "." + key, value);
         saveConfig();
     }
@@ -96,42 +117,59 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         if (!(sender instanceof Player player)) return true;
 
         if (cmd.getName().equalsIgnoreCase("titles")) {
+            int playerPower = getPlayerPower(player);
+
             if (args.length == 0) {
                 player.sendMessage(ChatColor.GOLD + "Your available prefixes:");
-                List<String> prefixKeys = getConfig().getStringList("prefix-list");
-                List<String> available = new ArrayList<>();
+                List<String> prefixKeys = new ArrayList<>(getConfig().getStringList("prefix-list"));
 
+                // --- SMART SORT: Visual Order for the menu ---
+                prefixKeys.sort((a, b) -> {
+                    // 1. Member always first
+                    if (a.equalsIgnoreCase("member")) return -1;
+                    if (b.equalsIgnoreCase("member")) return 1;
+
+                    int weightA = getConfig().getInt("prefixes." + a + ".weight", 0);
+                    int weightB = getConfig().getInt("prefixes." + b + ".weight", 0);
+
+                    // 2. Staff (Weight 100+) always last
+                    boolean isStaffA = weightA >= 100;
+                    boolean isStaffB = weightB >= 100;
+                    if (isStaffA && !isStaffB) return 1;
+                    if (!isStaffA && isStaffB) return -1;
+
+                    // 3. Sort others by weight (Lowest to Highest)
+                    return Integer.compare(weightA, weightB);
+                });
+
+                List<String> available = new ArrayList<>();
                 for (String k : prefixKeys) {
+                    int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
                     String perm = getConfig().getString("prefixes." + k + ".permission");
-                    if (perm != null && player.hasPermission(perm)) {
+
+                    // HYBRID CHECK: Respects Weight (Anti-OP) and Permission nodes (including 'false')
+                    if (playerPower >= titleWeight && player.hasPermission(perm)) {
                         String raw = getConfig().getString("prefixes." + k + ".prefix", k);
                         available.add(ChatColor.GRAY + "[" + ChatColor.translateAlternateColorCodes('&', raw) + ChatColor.GRAY + "]");
                     }
                 }
-
-                if (available.isEmpty()) {
-                    player.sendMessage(ChatColor.RED + "You don't have any special titles available!");
-                } else {
-                    player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
-                }
-
+                if (!available.isEmpty()) player.sendMessage(String.join(ChatColor.GOLD + ", ", available));
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Your current prefix: &7[" + getActivePrefix(player) + "&7]"));
                 return true;
             }
 
             String choice = args[0].toLowerCase();
             if (getConfig().contains("prefixes." + choice)) {
+                int targetWeight = getConfig().getInt("prefixes." + choice + ".weight", 0);
                 String perm = getConfig().getString("prefixes." + choice + ".permission");
-                if (player.hasPermission(perm)) {
+                if (playerPower >= targetWeight && player.hasPermission(perm)) {
                     saveTitleData(player, "active_title_id", choice, choice);
                     saveTitleData(player, "custom_style", "", choice);
                     String rawPrefix = getConfig().getString("prefixes." + choice + ".prefix");
                     player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Prefix/title set to: &7[" + rawPrefix + "&7]"));
                 } else {
-                    player.sendMessage(ChatColor.RED + "You don't have permission for this title!");
+                    player.sendMessage(ChatColor.RED + "No permission!");
                 }
-            } else {
-                player.sendMessage(ChatColor.RED + "Title not found.");
             }
             return true;
         }
@@ -140,26 +178,22 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
             String currentId = getTitleData(player, "active_title_id");
             if (currentId == null) currentId = "member";
 
-            List<String> syncList = getConfig().getStringList("sync-titles");
-            boolean isSynced = syncList.contains(currentId);
-
-            boolean canStyle = false;
-            if (player.hasPermission("prefixes.bypass")) canStyle = true;
-            else if (isSynced && player.hasPermission("prefixes.style.sync")) canStyle = true;
-            else if (!isSynced && player.hasPermission("prefixes.style.standard")) canStyle = true;
+            boolean isStaffTitle = getConfig().getStringList("sync-titles").contains(currentId);
+            boolean canStyle = player.hasPermission("prefixes.bypass") ||
+                    (isStaffTitle ? player.hasPermission("prefixes.style.staff") : player.hasPermission("prefixes.style.standard"));
 
             if (!canStyle) {
-                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cInsufficient Permission!"));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&cYou don't have permission to style this type of title!"));
                 return true;
             }
 
             if (args.length == 0) {
-                player.sendMessage(ChatColor.GOLD + "Set a custom color for your title.");
+                player.sendMessage(ChatColor.GOLD + "Usage: /titlecolor <colored name>");
                 return true;
             }
 
             String input = String.join(" ", args);
-            if (input.toLowerCase().matches(".*&[lno mk].*")) {
+            if (input.toLowerCase().matches(".*&[l-o rk].*")) {
                 player.sendMessage(ChatColor.RED + "Formatting codes (bold/italic/etc) are forbidden!");
                 return true;
             }
@@ -172,14 +206,12 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
             }
 
             String rawBase = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefixes." + currentId + ".prefix", "Member")));
-            String strippedInput = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input));
-
-            if (strippedInput.equals(rawBase)) {
+            if (ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input)).equals(rawBase)) {
                 saveTitleData(player, "custom_style", input, currentId);
                 String preview = ChatColor.translateAlternateColorCodes('&', input);
                 player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6New colors applied correctly! Your new title is &7[" + preview + "&7]"));
             } else {
-                player.sendMessage(ChatColor.GOLD + "The input title is wrong! Please match: " + ChatColor.WHITE + rawBase);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6The input title is wrong! Please match: " + ChatColor.WHITE + rawBase));
             }
             return true;
         }

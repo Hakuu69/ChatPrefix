@@ -1,8 +1,10 @@
-# Your updated format
+# The format for your global chat
 format: "&7[%chat_prefix%&7] &f%player_name% » &f%msg%"
 
-# Network Sync Settings
+# If true, specific titles will sync to LuckPerms 'prefix' meta
 sync-to-luckperms: true
+
+# These IDs will be synced to LuckPerms when selected
 sync-titles:
   - owner
   - coowner
@@ -14,8 +16,11 @@ sync-titles:
   - helper
   - jrhelper
 
+# The MASTER LIST: Defines every title available in the plugin
 prefix-list:
   - member
+  - voter
+  - cosmetic
   - jrhelper
   - helper
   - jrmoderator
@@ -27,36 +32,62 @@ prefix-list:
   - owner
 
 prefixes:
-  owner:
-    permission: prefixes.owner
-    prefix: "&4Owner"
-  coowner:
-    permission: prefixes.coowner
-    prefix: "&4Co-Owner"
-  headadmin:
-    permission: prefixes.headadmin
-    prefix: "&4Head-Admin"
-  sradmin:
-    permission: prefixes.sradmin
-    prefix: "&cSrAdmin"
-  admin:
-    permission: prefixes.admin
-    prefix: "&cAdmin"
-  moderator:
-    permission: prefixes.moderator
-    prefix: "&3Moderator"
-  jrmoderator:
-    permission: prefixes.jrmoderator
-    prefix: "&bJrModerator"
-  helper:
-    permission: prefixes.helper
-    prefix: "&2Helper"
-  jrhelper:
-    permission: prefixes.jrhelper
-    prefix: "&aJrHelper"
+  # --- BASE RANK ---
+  # Weight 5 beats Weight 1 (Cosmetics) for the Scoreboard/Rank
   member:
+    weight: 5
     permission: prefixes.member
     prefix: "&eMember"
 
-# Non-synced players will still be saved here locally
+  # --- COSMETIC TITLES ---
+  # Weight 1 is low so they don't override "Member" on the Scoreboard
+  voter:
+    weight: 1
+    permission: prefixes.voter
+    prefix: "&bVoter"
+  cosmetic:
+    weight: 1
+    permission: prefixes.cosmetic
+    prefix: "&dCosmetic"
+
+  # --- STAFF RANKS ---
+  # Weights 100+ ensure these always show at the end of the /titles list
+  jrhelper:
+    weight: 100
+    permission: prefixes.jrhelper
+    prefix: "&aJrHelper"
+  helper:
+    weight: 200
+    permission: prefixes.helper
+    prefix: "&2Helper"
+  jrmoderator:
+    weight: 300
+    permission: prefixes.jrmoderator
+    prefix: "&bJrModerator"
+  moderator:
+    weight: 400
+    permission: prefixes.moderator
+    prefix: "&3Moderator"
+  admin:
+    weight: 500
+    permission: prefixes.admin
+    prefix: "&cAdmin"
+  sradmin:
+    weight: 600
+    permission: prefixes.sradmin
+    prefix: "&cSrAdmin"
+  headadmin:
+    weight: 1000
+    permission: prefixes.headadmin
+    prefix: "&4Head-Admin"
+  coowner:
+    weight: 5000
+    permission: prefixes.coowner
+    prefix: "&4Co-Owner"
+  owner:
+    weight: 10000
+    permission: prefixes.owner
+    prefix: "&4Owner"
+
+# Data storage for player selections (Do not edit manually)
 players:
