@@ -31,7 +31,6 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
             this.luckPerms = LuckPermsProvider.get();
         }
 
-        // Fix NullPointer Warnings by checking if command exists
         setupCommand("titles");
         setupCommand("titlecolor");
         setupCommand("titlereload");
@@ -57,6 +56,23 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
             try { return Integer.parseInt(weightStr); } catch (NumberFormatException e) { return 1; }
         }
         return 1;
+    }
+
+    public String getHighestRank(Player player) {
+        int playerPower = getPlayerPower(player);
+        String highestId = "member";
+        int highestWeight = -1;
+
+        List<String> prefixKeys = getConfig().getStringList("prefix-list");
+        for (String k : prefixKeys) {
+            int titleWeight = getConfig().getInt("prefixes." + k + ".weight", 0);
+            String perm = getConfig().getString("prefixes." + k + ".permission", "prefixes.default");
+            if (player.hasPermission(perm) && playerPower >= titleWeight && titleWeight > highestWeight) {
+                highestWeight = titleWeight;
+                highestId = k;
+            }
+        }
+        return ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefixes." + highestId + ".prefix", "&eMember"));
     }
 
     @EventHandler
@@ -160,39 +176,43 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         }
 
         if (cmd.getName().equalsIgnoreCase("titlecolor") && sender instanceof Player player) {
-            handleTitleColor(player, args);
+            String currentId = getTitleData(player, "active_title_id");
+            if (currentId == null) currentId = "member";
+
+            boolean isStaffTitle = getConfig().getStringList("sync-titles").contains(currentId);
+            boolean canStyle = player.hasPermission("prefixes.bypass") || (isStaffTitle ? player.hasPermission("prefixes.style.staff") : player.hasPermission("prefixes.style.standard"));
+
+            if (!canStyle) {
+                player.sendMessage(ChatColor.RED + "No permission to style this title!");
+                return true;
+            }
+
+            String currentPrefixRaw = getConfig().getString("prefixes." + currentId + ".prefix", "Member");
+            String rawBase = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', currentPrefixRaw));
+
+            if (args.length == 0) {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Set a custom color for your current title &f" + rawBase + "&6."));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Example: &c/titlecolor &f&&faPla&&fbyer &6to get &aPla&byer"));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Use &c/color &6to get list of available color codes."));
+                return true;
+            }
+
+            String input = String.join(" ", args);
+            if (input.toLowerCase().matches(".*&[l-o rk].*")) {
+                player.sendMessage(ChatColor.RED + "Formatting codes forbidden!");
+                return true;
+            }
+
+            if (player.hasPermission("prefixes.bypass") || ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input)).equals(rawBase)) {
+                saveTitleData(player, "custom_style", input, currentId);
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6New colors applied! Title: &7[" + input + "&7]"));
+            } else {
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6The input title is wrong! Please us the color codes on your current title &f" + rawBase + " &6with matching capitalization."));
+                player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Example: &c/titlecolor &f&&faPla&&fbyer &6to get &aPla&byer"));
+            }
             return true;
         }
         return true;
-    }
-
-    private void handleTitleColor(Player player, String[] args) {
-        String currentId = getTitleData(player, "active_title_id");
-        if (currentId == null) currentId = "member";
-        boolean isStaffTitle = getConfig().getStringList("sync-titles").contains(currentId);
-        boolean canStyle = player.hasPermission("prefixes.bypass") || (isStaffTitle ? player.hasPermission("prefixes.style.staff") : player.hasPermission("prefixes.style.standard"));
-
-        if (!canStyle) {
-            player.sendMessage(ChatColor.RED + "No permission to style this title!");
-            return;
-        }
-        if (args.length == 0) {
-            player.sendMessage(ChatColor.GOLD + "Usage: /titlecolor <colored name>");
-            return;
-        }
-        String input = String.join(" ", args);
-        if (input.toLowerCase().matches(".*&[l-o rk].*")) {
-            player.sendMessage(ChatColor.RED + "Formatting codes forbidden!");
-            return;
-        }
-
-        String rawBase = ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', getConfig().getString("prefixes." + currentId + ".prefix", "Member")));
-        if (player.hasPermission("prefixes.bypass") || ChatColor.stripColor(ChatColor.translateAlternateColorCodes('&', input)).equals(rawBase)) {
-            saveTitleData(player, "custom_style", input, currentId);
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6New colors applied! Title: &7[" + input + "&7]"));
-        } else {
-            player.sendMessage(ChatColor.translateAlternateColorCodes('&', "&6Input wrong! Match: " + ChatColor.WHITE + rawBase));
-        }
     }
 
     private void showAvailableTitles(Player player) {
@@ -235,10 +255,10 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
 
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
-        String configFormat = getConfig().getString("format");
-        if (configFormat == null) configFormat = "&7[%chat_prefix%&7] %player_name%: %msg%";
+        String rawFormat = getConfig().getString("format");
+        if (rawFormat == null) return;
 
-        String format = configFormat.replace("%msg%", event.getMessage());
+        String format = rawFormat.replace("%msg%", event.getMessage());
         format = PlaceholderAPI.setPlaceholders(event.getPlayer(), format);
         event.setFormat(ChatColor.translateAlternateColorCodes('&', format.replace("%", "%%")));
     }

@@ -1,5 +1,5 @@
 name: ChatPrefix
-version: 2.1a.0
+version: '${version}'
 main: com.Hakuuu.chatPrefix.ChatPrefix
 api-version: '1.21'
 depend: [PlaceholderAPI, LuckPerms]

@@ -4,7 +4,8 @@ plugins {
 }
 
 group = "com.Hakuuu"
-version = "2.1.0"
+// Update this version here, and it will apply to your plugin.yml automatically
+version = "2.1.1"
 
 repositories {
     mavenCentral()
@@ -24,6 +25,15 @@ java {
 }
 
 tasks.processResources {
+    // This part handles the "Search and Replace" for the version tag
+    val props = mapOf("version" to project.version)
+    inputs.properties(props)
+    filteringCharset = "UTF-8"
+
+    filesMatching("plugin.yml") {
+        expand(props)
+    }
+
     from("src/main/resources") {
         include("plugin.yml")
         include("config.yml")
