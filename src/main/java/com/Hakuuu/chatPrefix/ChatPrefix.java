@@ -258,8 +258,19 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         String rawFormat = getConfig().getString("format");
         if (rawFormat == null) return;
 
-        String format = rawFormat.replace("%msg%", event.getMessage());
-        format = PlaceholderAPI.setPlaceholders(event.getPlayer(), format);
-        event.setFormat(ChatColor.translateAlternateColorCodes('&', format.replace("%", "%%")));
+        String message = event.getMessage();
+
+        if (event.getPlayer().hasPermission("prefixes.chat.color")) {
+            message = ChatColor.translateAlternateColorCodes('&', message);
+        }
+
+        String format = PlaceholderAPI.setPlaceholders(event.getPlayer(), rawFormat);
+        format = ChatColor.translateAlternateColorCodes('&', format);
+
+        // We insert the message manually into the format string.
+        // We double the % in the message to prevent it from causing errors in the final setFormat.
+        format = format.replace("%msg%", message.replace("%", "%%"));
+
+        event.setFormat(format);
     }
 }

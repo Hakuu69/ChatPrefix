@@ -5,7 +5,7 @@ plugins {
 
 group = "com.Hakuuu"
 // Update this version here, and it will apply to your plugin.yml automatically
-version = "2.1.1"
+version = "2.3.0"
 
 repositories {
     mavenCentral()

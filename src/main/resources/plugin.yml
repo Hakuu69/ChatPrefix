@@ -33,6 +33,9 @@ permissions:
   prefixes.style.staff:
     description: Allows styling colors for Synced/Staff titles (Owner through JrHelper).
     default: false
+  prefixes.chat.color:
+    description: Allows the player to use color codes (&) in their chat messages.
+    default: false
   prefixes.bypass:
     description: Allows styling any title regardless of restrictions or name matching.
     default: op
