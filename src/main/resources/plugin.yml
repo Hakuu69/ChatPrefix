@@ -19,6 +19,9 @@ commands:
     usage: /titlereload
     permission: prefixes.reload
     permission-message: "&cInsufficient Permission!"
+  color:
+    description: View available color and formatting codes.
+    aliases: [colors]
 
 permissions:
   prefixes.use:

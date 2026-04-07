@@ -35,6 +35,10 @@ public class ChatPrefix extends JavaPlugin implements Listener, CommandExecutor 
         setupCommand("titlecolor");
         setupCommand("titlereload");
 
+        if (getCommand("color") != null) {
+            getCommand("color").setExecutor(new ColorCommand());
+        }
+
         getServer().getPluginManager().registerEvents(this, this);
 
         if (Bukkit.getPluginManager().getPlugin("PlaceholderAPI") != null) {
